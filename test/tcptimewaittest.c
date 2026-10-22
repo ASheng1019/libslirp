@@ -124,6 +124,11 @@ static void run_case(uint32_t previous, uint32_t sequence, uint8_t flags,
     reply_flags = 0;
     slirp_input(slirp, packet, sizeof(packet));
     so = slirp->tcb.so_next;
+    if (flags & TH_RST) {
+        assert(so == &slirp->tcb);
+        slirp_cleanup(slirp);
+        return;
+    }
     assert(so != &slirp->tcb);
     tp = so->so_tcpcb;
     if (reopen) {
@@ -151,5 +156,7 @@ int main(void)
     run_case(100000, 110000, TH_SYN | TH_ACK, false, false);
     run_case(100000, 110000, TH_SYN | TH_FIN, false, false);
     run_case(100000, 110000, TH_SYN | TH_URG, false, false);
+    run_case(100000, 100001, TH_SYN | 0xc0, true, false); /* ECN negotiation */
+    run_case(100000, 100001, TH_SYN | TH_RST, false, false);
     return 0;
 }

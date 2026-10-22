@@ -248,6 +248,17 @@ guestfwdtest = executable('guestfwdtest', 'test/guestfwdtest.c',
 
 test('guestfwd', guestfwdtest)
 
+# Use the real stack objects to construct deterministic internal TCP states.
+tcptimewaittest = executable('tcptimewaittest', 'test/tcptimewaittest.c',
+  objects: lib.extract_all_objects(recursive: true),
+  c_args: cargs,
+  link_args: vflag,
+  include_directories: ['src', '.'],
+  dependencies: libslirp_deps
+)
+test('tcp-time-wait', tcptimewaittest)
+
+
 if install_devel
   install_headers(['src/libslirp.h'], subdir : 'slirp')
 

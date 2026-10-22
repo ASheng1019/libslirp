@@ -800,6 +800,22 @@ findso:
         goto step6;
     } /* switch tp->t_state */
     /*
+     * A bare SYN can reuse a TIME_WAIT four-tuple.  Handle it before
+     * receive-window trimming: a newer ISN can reopen even inside the
+     * old window; an older ISN needs an ACK to resynchronize the peer.
+     * Otherwise in-window SYNs are reset and old SYNs are silently lost
+     * at the missing-ACK check below.
+     */
+    if (tp->t_state == TCPS_TIME_WAIT &&
+        (tiflags & (TH_SYN | TH_ACK | TH_RST | TH_FIN | TH_URG)) == TH_SYN) {
+        if (SEQ_GT(ti->ti_seq, tp->rcv_nxt)) {
+            iss = tp->rcv_nxt + TCP_ISSINCR;
+            tp = tcp_close(tp);
+            goto findso;
+        }
+        goto dropafterack;
+    }
+    /*
      * States other than LISTEN or SYN_SENT.
      * Check that at least some bytes of segment are within
      * receive window.  If segment begins before rcv_nxt,
@@ -862,18 +878,6 @@ findso:
     todrop = (ti->ti_seq + ti->ti_len) - (tp->rcv_nxt + tp->rcv_wnd);
     if (todrop > 0) {
         if (todrop >= ti->ti_len) {
-            /*
-             * If a new connection request is received
-             * while in TIME_WAIT, drop the old connection
-             * and start over if the sequence numbers
-             * are above the previous ones.
-             */
-            if (tiflags & TH_SYN && tp->t_state == TCPS_TIME_WAIT &&
-                SEQ_GT(ti->ti_seq, tp->rcv_nxt)) {
-                iss = tp->rcv_nxt + TCP_ISSINCR;
-                tp = tcp_close(tp);
-                goto findso;
-            }
             /*
              * If window is closed can only take segments at
              * window edge, and have to drop data and PUSH from
